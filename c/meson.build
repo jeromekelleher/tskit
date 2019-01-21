@@ -1,7 +1,7 @@
-project('tskit', 'c', default_options: ['c_std=c99'])
+project('tskit', ['c', 'cpp'], default_options: ['c_std=c99'])
 
 kastore_dir=join_paths(meson.source_root(), 'kastore/c')
-add_global_arguments(['-I' + kastore_dir], language: 'c')
+add_global_arguments(['-I' + kastore_dir], language: ['c', 'cpp'])
 
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required: false)
@@ -85,6 +85,9 @@ executable('error_handling',
     sources: ['examples/error_handling.c'], link_with: [tskit_lib])
 executable('tree_iteration', 
     sources: ['examples/tree_iteration.c'], link_with: [tskit_lib])
+
+executable('cpp-experiment', 
+    sources: ['examples/cpp-experiment.cpp'], link_with: [tskit_lib], language: 'cpp')
 
 gsl_dep = dependency('gsl', required: false)
 if gsl_dep.found()
