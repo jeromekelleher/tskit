@@ -1,4 +1,4 @@
-project('tskit', ['c', 'cpp'], default_options: ['c_std=c99'])
+project('tskit', ['c', 'cpp'], default_options: ['c_std=c99','cpp_std=c++11'])
 
 kastore_dir=join_paths(meson.source_root(), 'kastore/c')
 add_global_arguments(['-I' + kastore_dir], language: ['c', 'cpp'])
