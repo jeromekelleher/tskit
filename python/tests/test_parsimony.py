@@ -454,6 +454,7 @@ class TestParsimonyRoundTrip(TestParsimonyBase):
         tables.sites.clear()
         tables.mutations.clear()
         G = ts.genotype_matrix(impute_missing_data=True)
+        print(G)
         alleles = [v.alleles for v in ts.variants()]
         for tree in ts.trees():
             for site in tree.sites():
@@ -517,6 +518,18 @@ class TestParsimonyRoundTrip(TestParsimonyBase):
         ts = msprime.simulate(20, mutation_rate=3, random_seed=3)
         self.verify(tsutil.jiggle_samples(ts))
 
+    def test_infinite_sites_n5_all_samples(self):
+        ts = msprime.simulate(5, mutation_rate=3, random_seed=3)
+        tables = ts.dump_tables()
+        tables.nodes.flags = np.ones_like(tables.nodes.flags)
+        self.verify(tables.tree_sequence())
+
+    def test_infinite_sites_n20_all_samples_recombination(self):
+        ts = msprime.simulate(20, mutation_rate=3, recombination_rate=2, random_seed=3)
+        tables = ts.dump_tables()
+        tables.nodes.flags = np.ones_like(tables.nodes.flags)
+        self.verify(tables.tree_sequence())
+
     def test_jukes_cantor_n5(self):
         ts = msprime.simulate(5, random_seed=1)
         ts = tsutil.jukes_cantor(ts, 5, 1, seed=1)
@@ -542,6 +555,13 @@ class TestParsimonyRoundTrip(TestParsimonyBase):
         ts = msprime.simulate(20, random_seed=1)
         ts = tsutil.jukes_cantor(ts, 5, 2, seed=1)
         self.verify(tsutil.jiggle_samples(ts))
+
+    def test_jukes_cantor_n20_all_samples_recombination(self):
+        ts = msprime.simulate(20, recombination_rate=2, random_seed=1)
+        ts = tsutil.jukes_cantor(ts, 5, 2, seed=1)
+        tables = ts.dump_tables()
+        tables.nodes.flags = np.ones_like(tables.nodes.flags)
+        self.verify(tables.tree_sequence())
 
     def test_jukes_cantor_n50_internal_samples(self):
         ts = msprime.simulate(50, random_seed=1)
