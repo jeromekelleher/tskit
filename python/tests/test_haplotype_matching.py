@@ -314,7 +314,8 @@ def ls_viterbi_tree(h, alleles, ts, rho, mu, precision=30, use_lib=True):
     """
     Viterbi path computation based on a tree sequence.
     """
-    if use_lib:
+    # if use_lib:
+    if False:
         acgt_alleles = tuple(alleles) == tskit.ALLELES_ACGT
         ls_hmm = _tskit.LsHmm(
             ts.ll_tree_sequence, recombination_rate=rho, mutation_rate=mu,
@@ -367,7 +368,7 @@ class LsHmmAlgorithm(object):
         # Diffs so we can can update T and T_index between trees.
         self.edge_diffs = self.ts.edge_diffs()
         self.parent = np.zeros(self.ts.num_nodes, dtype=int) - 1
-        self.tree = tskit.Tree(self.ts)
+        self.tree = tskit.Tree(self.ts, root_threshold=2)
         self.output = None
 
     def check_integrity(self):
@@ -397,6 +398,7 @@ class LsHmmAlgorithm(object):
         def compute(u, parent_state):
             union[:] = 0
             inter[:] = 1
+
             for v in tree.children(u):
                 child[:] = A[v]
                 # If the set for a given child is empty, then we know it inherits
@@ -419,10 +421,14 @@ class LsHmmAlgorithm(object):
             if u != -1:
                 # Compute the value at this node
                 state = st.value_index
-                if tree.is_internal(u):
-                    compute(u, state)
-                else:
+                # FIXME This algorithm for computing the Fitch states is wrong, looks
+                # like we're not taking the interal samples into account correctly.
+                # Just setting this to is_sample doesn't work, we need to think
+                # about how the values are distributed up the tree as well.
+                if tree.is_leaf(u):
                     A[u, state] = 1
+                else:
+                    compute(u, state)
                 # Find parent state
                 v = tree.parent(u)
                 if v != -1:
@@ -438,32 +444,33 @@ class LsHmmAlgorithm(object):
         T.clear()
         T_parent = []
 
-        old_state = T_old[T_index[tree.root]].value_index
-        new_state = np.where(A[tree.root] == 1)[0][0]
-        T.append(ValueTransition(tree_node=tree.root, value=values[new_state]))
-        T_parent.append(-1)
-        stack = [(tree.root, old_state, new_state, 0)]
-        while len(stack) > 0:
-            u, old_state, new_state, t_parent = stack.pop()
-            for v in tree.children(u):
-                old_child_state = old_state
-                if T_index[v] != -1:
-                    old_child_state = T_old[T_index[v]].value_index
-                if np.sum(A[v]) > 0:
-                    new_child_state = new_state
-                    child_t_parent = t_parent
-                    if A[v, new_state] == 0:
-                        new_child_state = np.where(A[v] == 1)[0][0]
-                        child_t_parent = len(T)
-                        T_parent.append(t_parent)
-                        T.append(ValueTransition(
-                            tree_node=v, value=values[new_child_state]))
-                    stack.append((v, old_child_state, new_child_state, child_t_parent))
-                else:
-                    if old_child_state != new_state:
-                        T_parent.append(t_parent)
-                        T.append(ValueTransition(
-                            tree_node=v, value=values[old_child_state]))
+        for root in tree.roots:
+            old_state = T_old[T_index[root]].value_index
+            new_state = np.where(A[root] == 1)[0][0]
+            T.append(ValueTransition(tree_node=tree.root, value=values[new_state]))
+            T_parent.append(-1)
+            stack = [(root, old_state, new_state, 0)]
+            while len(stack) > 0:
+                u, old_state, new_state, t_parent = stack.pop()
+                for v in tree.children(u):
+                    old_child_state = old_state
+                    if T_index[v] != -1:
+                        old_child_state = T_old[T_index[v]].value_index
+                    if np.sum(A[v]) > 0:
+                        new_child_state = new_state
+                        child_t_parent = t_parent
+                        if A[v, new_state] == 0:
+                            new_child_state = np.where(A[v] == 1)[0][0]
+                            child_t_parent = len(T)
+                            T_parent.append(t_parent)
+                            T.append(ValueTransition(
+                                tree_node=v, value=values[new_child_state]))
+                        stack.append((v, old_child_state, new_child_state, child_t_parent))
+                    else:
+                        if old_child_state != new_state:
+                            T_parent.append(t_parent)
+                            T.append(ValueTransition(
+                                tree_node=v, value=values[old_child_state]))
 
         for st in T_old:
             if st.tree_node != -1:
@@ -483,6 +490,8 @@ class LsHmmAlgorithm(object):
         T_index = self.T_index
         T = self.T
         _, edges_out, edges_in = next(self.edge_diffs)
+        # print("UPDATE TREE")
+        # print([(st.tree_node, st.value) for st in self.T])
 
         for edge in edges_out:
             u = edge.child
@@ -530,6 +539,9 @@ class LsHmmAlgorithm(object):
                     vt.tree_node = -1
                 vt.value_index = -1
 
+        # print("after = \n", self.tree.draw_text())
+        # print([(st.tree_node, st.value) for st in self.T])
+
     def update_probabilities(self, site, haplotype_state):
         tree = self.tree
         T_index = self.T_index
@@ -538,7 +550,8 @@ class LsHmmAlgorithm(object):
         allelic_state = self.allelic_state
 
         # Set the allelic_state for this site.
-        allelic_state[tree.root] = alleles.index(site.ancestral_state)
+        for root in tree.roots:
+            allelic_state[root] = alleles.index(site.ancestral_state)
         for mutation in site.mutations:
             u = mutation.node
             allelic_state[u] = alleles.index(mutation.derived_state)
@@ -563,7 +576,8 @@ class LsHmmAlgorithm(object):
                 st.value = round(x, self.precision)
 
         # Unset the states
-        allelic_state[tree.root] = -1
+        for root in tree.roots:
+            allelic_state[root] = -1
         for mutation in site.mutations:
             allelic_state[mutation.node] = -1
 
@@ -575,10 +589,14 @@ class LsHmmAlgorithm(object):
         while self.tree.next():
             self.update_tree()
             for site in self.tree.sites():
-                # print(site.id, "num_transitions=", len(self.T))
+                print(site.id, site.position, "num_transitions=", len(self.T))
                 self.update_probabilities(site, h[site.id])
+                print("\tBefore:", [(st.tree_node, st.value) for st in self.T])
                 self.compress()
                 self.finalise_site(site.id)
+                print("\tAfter:", [(st.tree_node, st.value) for st in self.T])
+            print("Finished with tree")
+            print(self.tree.draw_text())
         return self.output
 
     def finalise_site(self, l):
@@ -627,9 +645,12 @@ class CompressedMatrix(object):
             for site in tree.sites():
                 f = dict(self.value_transitions[site.id])
                 for j, u in enumerate(self.ts.samples()):
-                    while u not in f:
-                        u = tree.parent(u)
-                    A[site.id, j] = f[u]
+                    if tree.parent(u) == tskit.NULL and tree.left_child(u) == tskit.NULL:
+                        A[site.id, j] = tskit.MISSING_DATA
+                    else:
+                        while u not in f:
+                            u = tree.parent(u)
+                        A[site.id, j] = f[u]
         return A
 
 
@@ -686,6 +707,10 @@ class ViterbiMatrix(CompressedMatrix):
                 max_value = value
                 u = node
         assert u != -1
+
+        print("choose at site", site_id, "node = ", u)
+        print(self.value_transitions[site_id])
+        print(tree.draw_text())
 
         transition_nodes = [u for (u, _) in self.value_transitions[site_id]]
         while not tree.is_sample(u):
@@ -918,7 +943,7 @@ class LiStephensBase(object):
         ts = tsutil.jukes_cantor(ts, num_sites=10, mu=0.1, seed=10)
         self.verify(ts, tskit.ALLELES_ACGT)
 
-    @unittest.skip("Not supporting internal samples yet")
+    # @unittest.skip("Not supporting internal samples yet")
     def test_ancestors_n_3(self):
         ts = msprime.simulate(3, recombination_rate=2, mutation_rate=7, random_seed=2)
         self.assertGreater(ts.num_sites, 5)
@@ -928,6 +953,17 @@ class LiStephensBase(object):
         print(tables.nodes)
         ts = tables.tree_sequence()
         self.verify(ts)
+
+    def test_ancestors_single_tree_n_3(self):
+        ts = msprime.simulate(3, mutation_rate=3, random_seed=2)
+        self.assertGreater(ts.num_sites, 5)
+        tables = ts.dump_tables()
+        print(tables.nodes)
+        tables.nodes.flags = np.ones_like(tables.nodes.flags)
+        print(tables.nodes)
+        ts = tables.tree_sequence()
+        self.verify(ts)
+
 
 
 class ForwardAlgorithmBase(LiStephensBase):
@@ -960,31 +996,40 @@ class TestExactMatchViterbi(ViterbiAlgorithmBase, unittest.TestCase):
     def verify(self, ts, alleles=tskit.ALLELES_01):
         G = ts.genotype_matrix(alleles=alleles)
         H = G.T
-        # print(H)
+        print(H)
         rho = np.zeros(ts.num_sites) + 0.1
         mu = np.zeros(ts.num_sites)
         rho[0] = 0
-        for h in H:
+        print(ts.draw_text())
+        for h in H[4:]:
+            print()
+            if np.any(h < 0):
+                continue
+            print(h)
             p1 = ls_viterbi_naive(h, alleles, G, rho, mu)
             p2 = ls_viterbi_vectorised(h, alleles, G, rho, mu)
             cm1 = ls_viterbi_tree(h, alleles, ts, rho, mu, use_lib=True)
             p3 = cm1.traceback()
-            cm2 = ls_viterbi_tree(h, alleles, ts, rho, mu, use_lib=False)
-            p4 = cm1.traceback()
-            self.assertCompressedMatricesEqual(cm1, cm2)
+            # cm2 = ls_viterbi_tree(h, alleles, ts, rho, mu, use_lib=False)
+            # p4 = cm1.traceback()
+            # self.assertCompressedMatricesEqual(cm1, cm2)
+
+            print(p1)
+            print(p2)
+            print(p3)
 
             self.assertEqual(len(np.unique(p1)), 1)
             self.assertEqual(len(np.unique(p2)), 1)
             self.assertEqual(len(np.unique(p3)), 1)
-            self.assertEqual(len(np.unique(p4)), 1)
+            # self.assertEqual(len(np.unique(p4)), 1)
             m1 = H[p1, np.arange(H.shape[1])]
             self.assertTrue(np.array_equal(m1, h))
             m2 = H[p2, np.arange(H.shape[1])]
             self.assertTrue(np.array_equal(m2, h))
             m3 = H[p3, np.arange(H.shape[1])]
             self.assertTrue(np.array_equal(m3, h))
-            m4 = H[p3, np.arange(H.shape[1])]
-            self.assertTrue(np.array_equal(m4, h))
+            # m4 = H[p3, np.arange(H.shape[1])]
+            # self.assertTrue(np.array_equal(m4, h))
 
 
 class TestGeneralViterbi(ViterbiAlgorithmBase, unittest.TestCase):
