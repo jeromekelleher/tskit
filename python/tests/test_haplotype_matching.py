@@ -381,6 +381,17 @@ class LsHmmAlgorithm(object):
             if st.tree_node != -1:
                 assert j == self.T_index[st.tree_node]
 
+    def decompress_tree(self):
+        value_map = {}
+        transitions = {st.tree_node: st.value for st in self.T if st.tree_node != -1}
+        for u in self.tree.nodes():
+            v = u
+            while v not in transitions:
+                v = self.tree.parent(v)
+            assert v != tskit.NULL
+            value_map[u] = transitions[v]
+        return value_map
+
     def compress(self):
         tree = self.tree
         T = self.T
@@ -396,6 +407,9 @@ class LsHmmAlgorithm(object):
         child = np.zeros(len(values), dtype=int)
 
         def compute(u, parent_state):
+            if tree.is_sample(u):
+                A[u, state] = 1
+                return
             union[:] = 0
             inter[:] = 1
 
@@ -423,12 +437,7 @@ class LsHmmAlgorithm(object):
                 state = st.value_index
                 # FIXME This algorithm for computing the Fitch states is wrong, looks
                 # like we're not taking the interal samples into account correctly.
-                # Just setting this to is_sample doesn't work, we need to think
-                # about how the values are distributed up the tree as well.
-                if tree.is_leaf(u):
-                    A[u, state] = 1
-                else:
-                    compute(u, state)
+                compute(u, state)
                 # Find parent state
                 v = tree.parent(u)
                 if v != -1:
@@ -591,10 +600,22 @@ class LsHmmAlgorithm(object):
             for site in self.tree.sites():
                 print(site.id, site.position, "num_transitions=", len(self.T))
                 self.update_probabilities(site, h[site.id])
+                print(self.tree.draw_text())
                 print("\tBefore:", [(st.tree_node, st.value) for st in self.T])
+                node_values_before = self.decompress_tree()
+                print(node_values_before)
+                # Note: the Fitch parsimony isn't working here because it's
+                # not respecting the values assigned to internal samples. We're
+                # pushing values up the tree where we shouldn't, changing
+                # the actual values.
                 self.compress()
-                self.finalise_site(site.id)
+                node_values_after = self.decompress_tree()
+                # assert node_values_before == node_values_after
+                if node_values_after != node_values_before:
+                    print("HERE!!")
+                print(node_values_after)
                 print("\tAfter:", [(st.tree_node, st.value) for st in self.T])
+                self.finalise_site(site.id)
             print("Finished with tree")
             print(self.tree.draw_text())
         return self.output
@@ -963,6 +984,17 @@ class LiStephensBase(object):
         print(tables.nodes)
         ts = tables.tree_sequence()
         self.verify(ts)
+
+    def test_ancestors_single_tree_n_15(self):
+        ts = msprime.simulate(5, mutation_rate=3, random_seed=42)
+        self.assertGreater(ts.num_sites, 5)
+        tables = ts.dump_tables()
+        print(tables.nodes)
+        tables.nodes.flags = np.ones_like(tables.nodes.flags)
+        print(tables.nodes)
+        ts = tables.tree_sequence()
+        self.verify(ts)
+
 
 
 
