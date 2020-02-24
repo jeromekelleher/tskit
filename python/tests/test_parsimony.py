@@ -454,7 +454,6 @@ class TestParsimonyRoundTrip(TestParsimonyBase):
         tables.sites.clear()
         tables.mutations.clear()
         G = ts.genotype_matrix(impute_missing_data=True)
-        print(G)
         alleles = [v.alleles for v in ts.variants()]
         for tree in ts.trees():
             for site in tree.sites():
