@@ -30,7 +30,6 @@ import itertools
 import json
 import math
 import random
-import re
 import sys
 import unittest
 
@@ -7960,8 +7959,7 @@ class TestPolytomySplitting:
     Test the ability to randomly split polytomies
     """
 
-    # A complex ts with polytomies - in the first 2 trees the polytomy involves
-    # the same children, so should be resolved in one go
+    # A complex ts with polytomies
     #
     # 1.00┊    6      ┊      6    ┊       6   ┊           ┊      6    ┊
     #     ┊ ┏━┳┻┳━┓   ┊   ┏━┳┻┳━┓ ┊    ┏━━╋━┓ ┊           ┊   ┏━┳┻┳━┓ ┊
@@ -7991,8 +7989,8 @@ class TestPolytomySplitting:
     7       0.8      1.0      6       1,2,3,4
     """
 
-    def ts_polytomy_4(self):
-        return tskit.Tree.generate_star(4).tree_sequence
+    def tree_polytomy_4(self):
+        return tskit.Tree.generate_star(4)
 
     def ts_polytomy_44344(self):
         return tskit.load_text(
@@ -8001,58 +7999,56 @@ class TestPolytomySplitting:
             strict=False,
         )
 
-    # NB: testing statistical properties is nontrivial in a unit test - we need to run
-    # repeats to check expectations, which can be slow
-    @pytest.mark.slow
-    def test_equiprobable(self):
-        n_tops_4 = 15  # 4-tomy has 15 poss. resolutions
-        n_tops_3 = 3  # 3-tomy has 3 poss. resolutions
-        # Simplify the example tree to remove isolated node 0
-        ts = self.ts_polytomy_44344().simplify(np.arange(1, 5), keep_unary=True)
-        assert ts.num_trees == 4
-
-        num_tree_topologies = [collections.Counter() for _ in range(ts.num_trees)]
-        start_seed = 123
-        n = 2700  # This may take some time, e.g. 5 secs
-        for seed in range(start_seed, start_seed + n):
-            ts_split = ts.split_polytomies(random_seed=seed * 10).simplify(
-                keep_unary=False
-            )
-            # Tree 0 should have been concatenated into tree 1 by simplification
-            for tree in ts_split.trees():
-                num_tree_topologies[tree.index].update([tree.rank()])
-        for i, n_topologies in enumerate([n_tops_4, n_tops_3, n_tops_4, n_tops_4]):
-            assert len(num_tree_topologies[i]) == n_topologies
-            # If equal probabilities, max difference
-            freqs = [c / n for c in num_tree_topologies[i].values()]
-            # all counts freqs should be roughly 1/nth of the trees
-            assert min(freqs) > 1 / n_topologies * 0.8
-            assert max(freqs) < 1 / n_topologies * 1.2
+    def test_all_topologies_n4(self):
+        ranks = collections.Counter()
+        t4 = self.tree_polytomy_4()
+        for _ in range(150):
+            tree = t4.split_polytomies()
+            ranks[tree.rank()] += 1
+        # There are 15 possible binary trees here, we should have seen them
+        # all with high probability after 150 attempts.
+        assert len(ranks) == 15
 
     def test_simple_examples(self):
-        ts = self.ts_polytomy_4().split_polytomies(random_seed=12)
+        tree = self.tree_polytomy_4().split_polytomies(random_seed=12)
+        for node in tree.nodes():
+            assert tree.num_children(node) < 3
+
+    def verify_splits(self, ts):
+        n_poly = 0
+        for e in ts.edgesets():
+            if len(e.children) > 2:
+                n_poly += 1
+        assert n_poly > 3
+        assert ts.num_trees > 3
         for tree in ts.trees():
-            for node in tree.nodes():
-                assert tree.num_children(node) < 3
+            binary_tree = tree.split_polytomies(random_seed=11)
+            assert binary_tree.interval == tree.interval
+            for u in binary_tree.nodes():
+                assert binary_tree.num_children(u) < 3
+            for u in tree.nodes():
+                assert binary_tree.time(u) == tree.time(u)
+            resolved_ts = binary_tree.tree_sequence
+            assert resolved_ts.sequence_length == ts.sequence_length
+            assert resolved_ts.num_trees <= 3
+            if tree.interval[0] == 0:
+                assert resolved_ts.num_trees == 2
+                null_tree = resolved_ts.last()
+                assert null_tree.num_roots == ts.num_samples
+            elif tree.interval[1] == ts.sequence_length:
+                assert resolved_ts.num_trees == 2
+                null_tree = resolved_ts.first()
+                assert null_tree.num_roots == ts.num_samples
+            else:
+                null_tree = resolved_ts.first()
+                assert null_tree.num_roots == ts.num_samples
+                null_tree.next()
+                assert null_tree.num_roots == tree.num_roots
+                null_tree.next()
+                assert null_tree.num_roots == ts.num_samples
 
     def test_complex_examples(self):
-        ts = self.ts_polytomy_44344().split_polytomies(random_seed=12)
-        for tree in ts.trees():
-            for node in tree.nodes():
-                assert tree.num_children(node) < 3
-        # Tree 0 should have same resolution (same internal nodes) as tree 1
-        t = ts.at_index(0)
-        n0 = {n for n in t.nodes() if not (t.is_leaf(n) or t.parent(n) == tskit.NULL)}
-        t = ts.at_index(1)
-        n1 = {n for n in t.nodes() if not (t.is_leaf(n) or t.parent(n) == tskit.NULL)}
-        assert n0 == n1
-        # Tree -2 should not have same resolution as tree -1 (all internal nodes should
-        # differ) as the root has changed, even though the children are the same
-        t = ts.at_index(-2)
-        n0 = {n for n in t.nodes() if not (t.is_leaf(n) or t.parent(n) == tskit.NULL)}
-        t = ts.at_index(-1)
-        n1 = {n for n in t.nodes() if not (t.is_leaf(n) or t.parent(n) == tskit.NULL)}
-        assert len(n0 & n1) == 0
+        self.verify_splits(self.ts_polytomy_44344())
 
     def test_nonbinary_simulation(self):
         demographic_events = [
@@ -8065,32 +8061,21 @@ class TestPolytomySplitting:
             demographic_events=demographic_events,
             random_seed=7,
         )
-        n_poly = 0
-        for e in ts.edgesets():
-            if len(e.children) > 2:
-                n_poly += 1
-        assert n_poly > 3
-        ts_binary = ts.split_polytomies(random_seed=11)
-        for tree in ts_binary.trees():
-            for node in tree.nodes():
-                assert tree.num_children(node) < 3
+        self.verify_splits(ts)
 
     def test_bad_method(self):
         with pytest.raises(ValueError, match="Method"):
-            self.ts_polytomy_4().split_polytomies(method="something_else")
+            self.tree_polytomy_4().split_polytomies(method="something_else")
 
     def test_epsilon_for_nodes(self):
         with pytest.raises(
-            ValueError, match="not small enough to create new nodes under node 4"
-        ) as exc_info:
-            self.ts_polytomy_4().split_polytomies(epsilon=1, random_seed=12)
-        m = re.search(r"must be < ([-\d.e]+).", exc_info.value.args[0])
-        assert m is not None
-        suggested_epsilon = float(m.group(1)) * 0.999
-        self.ts_polytomy_4().split_polytomies(epsilon=suggested_epsilon, random_seed=12)
+            _tskit.LibraryError,
+            match="not small enough to create new nodes below a polytomy",
+        ):
+            self.tree_polytomy_4().split_polytomies(epsilon=1, random_seed=12)
 
     def test_epsilon_for_mutations(self):
-        tables = self.ts_polytomy_4().dump_tables()
+        tables = self.tree_polytomy_4().tree_sequence.dump_tables()
         root_time = tables.nodes.time[-1]
         assert root_time > 0.1
         site = tables.sites.add_row(position=0.5, ancestral_state="0")
@@ -8098,20 +8083,22 @@ class TestPolytomySplitting:
         tables.mutations.add_row(
             site=site, time=root_time - mut_diff, node=0, derived_state="1"
         )
-        ts = tables.tree_sequence()
+        tree = tables.tree_sequence().first()
         with pytest.raises(
             _tskit.LibraryError,
             match="not small enough to create new nodes below a polytomy",
         ):
-            ts.split_polytomies(epsilon=mut_diff * 2, random_seed=13)
+            tree.split_polytomies(epsilon=mut_diff * 2, random_seed=13)
         # A 4-tomy creates 2 new nodes => epsilon of ~ 1/3 of mut_diff should work
-        self.ts_polytomy_4().split_polytomies(epsilon=mut_diff / 3, random_seed=13)
+        self.tree_polytomy_4().split_polytomies(epsilon=mut_diff / 3, random_seed=13)
 
     def test_provenance(self):
-        ts = self.ts_polytomy_4()
-        ts_split = ts.split_polytomies(random_seed=14)
+        tree = self.tree_polytomy_4()
+        ts_split = tree.split_polytomies(random_seed=14).tree_sequence
         record = json.loads(ts_split.provenance(ts_split.num_provenances - 1).record)
         assert record["parameters"]["command"] == "split_polytomies"
-        ts_split = ts.split_polytomies(random_seed=12, record_provenance=False)
+        ts_split = tree.split_polytomies(
+            random_seed=12, record_provenance=False
+        ).tree_sequence
         record = json.loads(ts_split.provenance(ts_split.num_provenances - 1).record)
         assert record["parameters"]["command"] != "split_polytomies"
