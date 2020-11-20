@@ -2387,10 +2387,8 @@ class Tree:
 
         If the ``method`` is ``"random"`` (currently the only option, and the default
         when no method is specified), then for a node with :math:`n` children, the
-        :math:`(2n - 3)!!` possible bifurcating topologies are produced with equal
+        :math:`(2n - 3)! / (2^(n - 2) (n - 2!))` possible binary trees with equal
         probability.
-
-        .. fixme:: Looks like this function is wrong
 
         The returned :class`.Tree` will have the same genomic span as this tree,
         and node IDs will be converved (that is, node ``u`` in this tree will

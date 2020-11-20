@@ -55,7 +55,7 @@ class TreeNode:
         implementation of Algorithm R, because we are interested in
         the leaf node labellings.
 
-        The pre-fasicle text is available here, page 16:
+        The pre-fascicle text is available here, page 16:
         http://www.cs.utsa.edu/~wagner/knuth/fasc4a.pdf
         """
         nodes = [TreeNode(label=leaf_labels[0])]
@@ -66,6 +66,7 @@ class TreeNode:
             if x.parent is not None:
                 index = x.parent.children.index(x)
                 x.parent.children[index] = internal
+            # TODO it's not clear if this shuffle is actually needed.
             rng.shuffle(internal.children)
             x.parent = internal
             n.parent = internal
