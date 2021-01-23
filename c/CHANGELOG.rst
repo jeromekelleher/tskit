@@ -1,3 +1,13 @@
+----------------------
+[0.99.10] - 2021-XX-XX
+----------------------
+
+**Features**
+
+- Support migrations in tsk_table_collection_sort. (:user:`jeromekelleher`,
+  :issue:`22`, :issue:`117`, :pr:`1131`).
+
+
 ---------------------
 [0.99.9] - 2021-01-22
 ---------------------
