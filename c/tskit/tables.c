@@ -54,6 +54,7 @@ typedef struct {
     int data_type;
     tsk_size_t **offset_array_dest;
     tsk_flags_t options;
+    tsk_size_t *offset_array_mem;
 } read_table_ragged_col_t;
 
 typedef struct {
@@ -145,6 +146,21 @@ out:
 }
 
 static int
+cast_offset_array(read_table_ragged_col_t *col, tsk_size_t num_rows)
+{
+    int ret = 0;
+
+    col->offset_array_mem = malloc((num_rows + 1) * sizeof(*col->offset_array_mem));
+    if (col->offset_array_mem == NULL) {
+        ret = TSK_ERR_NO_MEMORY;
+        goto out;
+    }
+    printf("HERE!\n");
+out:
+    return ret;
+}
+
+static int
 read_table_ragged_cols(kastore_t *store, tsk_size_t *num_rows,
     read_table_ragged_col_t *cols, tsk_flags_t TSK_UNUSED(flags))
 {
@@ -218,11 +234,18 @@ read_table_ragged_cols(kastore_t *store, tsk_size_t *num_rows,
                     goto out;
                 }
             }
-            if (type != TSK_SIZE_STORAGE_TYPE) {
+            if (type == KAS_UINT32) {
+                offset_array = *col->offset_array_dest;
+            } else if (type == KAS_UINT64) {
+                ret = cast_offset_array(col, *num_rows);
+                if (ret != 0) {
+                    goto out;
+                }
+                offset_array = col->offset_array_mem;
+            } else {
                 ret = TSK_ERR_BAD_COLUMN_TYPE;
                 goto out;
             }
-            offset_array = *col->offset_array_dest;
             if (offset_array[*num_rows] != (tsk_size_t) data_len) {
                 ret = TSK_ERR_BAD_OFFSET;
                 goto out;
@@ -1209,11 +1232,11 @@ tsk_individual_table_load(tsk_individual_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "individuals/location", (void **) &location, &location_length, KAS_FLOAT64,
-            &location_offset, 0 },
+            &location_offset, 0, NULL},
         { "individuals/parents", (void **) &parents, &parents_length,
-            TSK_ID_STORAGE_TYPE, &parents_offset, TSK_COL_OPTIONAL },
+            TSK_ID_STORAGE_TYPE, &parents_offset, TSK_COL_OPTIONAL, NULL},
         { "individuals/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, 0 },
+            &metadata_offset, 0, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -1805,7 +1828,7 @@ tsk_node_table_load(tsk_node_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "nodes/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, 0 },
+            &metadata_offset, 0, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -2441,7 +2464,7 @@ tsk_edge_table_load(tsk_edge_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "edges/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, TSK_COL_OPTIONAL },
+            &metadata_offset, TSK_COL_OPTIONAL, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -3112,9 +3135,9 @@ tsk_site_table_load(tsk_site_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "sites/ancestral_state", (void **) &ancestral_state, &ancestral_state_length,
-            KAS_UINT8, &ancestral_state_offset, 0 },
+            KAS_UINT8, &ancestral_state_offset, 0, NULL},
         { "sites/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, 0 },
+            &metadata_offset, 0, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -3797,9 +3820,9 @@ tsk_mutation_table_load(tsk_mutation_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "mutations/derived_state", (void **) &derived_state, &derived_state_length,
-            KAS_UINT8, &derived_state_offset, 0 },
+            KAS_UINT8, &derived_state_offset, 0, NULL},
         { "mutations/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, 0 },
+            &metadata_offset, 0, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -4394,7 +4417,7 @@ tsk_migration_table_load(tsk_migration_table_t *self, kastore_t *store)
     };
     read_table_ragged_col_t ragged_cols[] = {
         { "migrations/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, TSK_COL_OPTIONAL },
+            &metadata_offset, TSK_COL_OPTIONAL, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -4901,7 +4924,7 @@ tsk_population_table_load(tsk_population_table_t *self, kastore_t *store)
 
     read_table_ragged_col_t ragged_cols[] = {
         { "populations/metadata", (void **) &metadata, &metadata_length, KAS_UINT8,
-            &metadata_offset, 0 },
+            &metadata_offset, 0, NULL},
         { .name = NULL },
     };
     read_table_property_t properties[] = {
@@ -5467,9 +5490,9 @@ tsk_provenance_table_load(tsk_provenance_table_t *self, kastore_t *store)
 
     read_table_ragged_col_t ragged_cols[] = {
         { "provenances/timestamp", (void **) &timestamp, &timestamp_length, KAS_UINT8,
-            &timestamp_offset, 0 },
+            &timestamp_offset, 0, NULL},
         { "provenances/record", (void **) &record, &record_length, KAS_UINT8,
-            &record_offset, 0 },
+            &record_offset, 0, NULL},
         { .name = NULL },
     };
 
