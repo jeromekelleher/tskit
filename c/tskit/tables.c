@@ -324,12 +324,57 @@ out:
 }
 
 static int
+write_offset_col(kastore_t *store, const write_table_ragged_col_t *col, tsk_flags_t options)
+{
+    int ret = 0;
+    char offset_col_name[TSK_MAX_COL_NAME_LEN];
+    int64_t *offset64 = NULL;
+    tsk_size_t len = col->num_rows + 1;
+    tsk_size_t j;
+    int type;
+    const void *data;
+
+    assert(strlen(col->name) + strlen("_offset") + 2 < sizeof(offset_col_name));
+    strcpy(offset_col_name, col->name);
+    strcat(offset_col_name, "_offset");
+
+    /* Note: this is a temporary implementation while we're getting some infrastructure
+     * in place for the change to 64 bit offsets. Ultimately we'll be doing the cast
+     * in the other direction, if the size of small enough. The TSK_DUMP_FORCE_OFFSET_64
+     * option will still be useful for testing though, because that means we don't have
+     * to force huge arrays to test all the code paths.
+     */
+    if (options & TSK_DUMP_FORCE_OFFSET_64) {
+        offset64 = malloc(len * sizeof(*offset64));
+        if (offset64 == NULL) {
+            ret = TSK_ERR_NO_MEMORY;
+            goto out;
+        }
+        for (j = 0; j < len; j++) {
+            offset64[j] = col->offset_array[j];
+        }
+        type = KAS_UINT64;
+        data = offset64;
+    } else {
+        type = KAS_UINT32;
+        data = col->offset_array;
+    }
+    ret = kastore_puts(store, offset_col_name, data, len, type, 0);
+    if (ret != 0) {
+        ret = tsk_set_kas_error(ret);
+        goto out;
+    }
+out:
+    tsk_safe_free(offset64);
+    return ret;
+}
+
+static int
 write_table_ragged_cols(kastore_t *store, const write_table_ragged_col_t *write_cols,
-    tsk_flags_t TSK_UNUSED(options))
+    tsk_flags_t options)
 {
     int ret = 0;
     const write_table_ragged_col_t *col;
-    char offset_col_name[TSK_MAX_COL_NAME_LEN];
 
     for (col = write_cols; col->name != NULL; col++) {
         ret = kastore_puts(
@@ -338,14 +383,8 @@ write_table_ragged_cols(kastore_t *store, const write_table_ragged_col_t *write_
             ret = tsk_set_kas_error(ret);
             goto out;
         }
-        assert(strlen(col->name) + strlen("_offset") + 2 < sizeof(offset_col_name));
-        strcpy(offset_col_name, col->name);
-        strcat(offset_col_name, "_offset");
-
-        ret = kastore_puts(store, offset_col_name, col->offset_array, col->num_rows + 1,
-            TSK_SIZE_STORAGE_TYPE, 0);
+        ret = write_offset_col(store, col, options);
         if (ret != 0) {
-            ret = tsk_set_kas_error(ret);
             goto out;
         }
     }
