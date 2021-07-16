@@ -483,6 +483,8 @@ test_force_offset_64(void)
     kastore_t store;
     kaitem_t *item;
     const char *suffix;
+    const char *offset_str = "_offset";
+    int num_found = 0;
     size_t j;
 
     ret = tsk_treeseq_dump(ts, _tmp_file_name, TSK_DUMP_FORCE_OFFSET_64);
@@ -494,12 +496,15 @@ test_force_offset_64(void)
     for (j = 0; j < store.num_items; j++) {
         item = &store.items[j];
         /* Does the key end in "_offset"? */
-        if (item->key_len > 7) {
-            suffix = item->key + (item->key_len - 7);
-            printf("item: %.*s\n", 7, suffix);
+        if (item->key_len > strlen(offset_str)) {
+            suffix = item->key + (item->key_len - strlen(offset_str));
+            if (strncmp(suffix, offset_str, strlen(offset_str)) == 0) {
+                CU_ASSERT_EQUAL(item->type, KAS_UINT64);
+                num_found++;
+            }
         }
     }
-
+    CU_ASSERT_TRUE(num_found > 0);
     kastore_close(&store);
 
     ret = tsk_table_collection_load(&t1, _tmp_file_name, 0);
