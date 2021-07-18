@@ -359,7 +359,9 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
     int ret = 0;
     kastore_t store;
     tsk_table_collection_t tables;
-    tsk_size_t *offset_array, *offset_copy;
+    /* Note: we assume the offsets here will be from columns that are encoded in 32 bit
+     */
+    uint32_t *offset_array, *offset_copy;
     size_t offset_len;
     int type;
     tsk_size_t data_len;
@@ -371,7 +373,7 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
 
     ret = kastore_gets(&store, offset_col, (void **) &offset_array, &offset_len, &type);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
-    CU_ASSERT_EQUAL_FATAL(type, TSK_SIZE_STORAGE_TYPE);
+    CU_ASSERT_EQUAL_FATAL(type, KAS_UINT32);
     offset_copy = malloc(offset_len * sizeof(*offset_array));
     CU_ASSERT_FATAL(offset_copy != NULL);
     memcpy(offset_copy, offset_array, offset_len * sizeof(*offset_array));
@@ -383,8 +385,7 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
     copy_store_drop_columns(ts, 1, &offset_col, _tmp_file_name);
     ret = kastore_open(&store, _tmp_file_name, "a", 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
-    ret = kastore_puts(
-        &store, offset_col, offset_copy, offset_len, TSK_SIZE_STORAGE_TYPE, 0);
+    ret = kastore_puts(&store, offset_col, offset_copy, offset_len, KAS_UINT32, 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
     ret = kastore_close(&store);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
@@ -397,8 +398,7 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
     copy_store_drop_columns(ts, 1, &offset_col, _tmp_file_name);
     ret = kastore_open(&store, _tmp_file_name, "a", 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
-    ret = kastore_puts(
-        &store, offset_col, offset_copy, offset_len, TSK_SIZE_STORAGE_TYPE, 0);
+    ret = kastore_puts(&store, offset_col, offset_copy, offset_len, KAS_UINT32, 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
     ret = kastore_close(&store);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
@@ -406,12 +406,11 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
     CU_ASSERT_EQUAL_FATAL(ret, TSK_ERR_BAD_OFFSET);
     tsk_table_collection_free(&tables);
 
-    offset_copy[offset_len - 1] = data_len + 1;
+    offset_copy[offset_len - 1] = (uint32_t) data_len + 1;
     copy_store_drop_columns(ts, 1, &offset_col, _tmp_file_name);
     ret = kastore_open(&store, _tmp_file_name, "a", 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
-    ret = kastore_puts(
-        &store, offset_col, offset_copy, offset_len, TSK_SIZE_STORAGE_TYPE, 0);
+    ret = kastore_puts(&store, offset_col, offset_copy, offset_len, KAS_UINT32, 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
     ret = kastore_close(&store);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
@@ -422,7 +421,7 @@ verify_bad_offset_columns(tsk_treeseq_t *ts, const char *offset_col)
     copy_store_drop_columns(ts, 1, &offset_col, _tmp_file_name);
     ret = kastore_open(&store, _tmp_file_name, "a", 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
-    ret = kastore_puts(&store, offset_col, NULL, 0, TSK_SIZE_STORAGE_TYPE, 0);
+    ret = kastore_puts(&store, offset_col, NULL, 0, KAS_UINT32, 0);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
     ret = kastore_close(&store);
     CU_ASSERT_EQUAL_FATAL(ret, 0);
@@ -985,8 +984,8 @@ test_load_node_table_errors(void)
     tsk_id_t population = 0;
     tsk_id_t individual = 0;
     int8_t metadata = 0;
-    tsk_size_t metadata_offset[] = { 0, 1 };
-    tsk_size_t version[2]
+    uint32_t metadata_offset[] = { 0, 1 };
+    uint32_t version[2]
         = { TSK_FILE_FORMAT_VERSION_MAJOR, TSK_FILE_FORMAT_VERSION_MINOR };
     write_table_col_t write_cols[] = {
         { "nodes/time", (void *) &time, 1, KAS_FLOAT64 },
@@ -994,7 +993,7 @@ test_load_node_table_errors(void)
         { "nodes/population", (void *) &population, 1, TSK_ID_STORAGE_TYPE },
         { "nodes/individual", (void *) &individual, 1, TSK_ID_STORAGE_TYPE },
         { "nodes/metadata", (void *) &metadata, 1, KAS_UINT8 },
-        { "nodes/metadata_offset", (void *) metadata_offset, 2, TSK_SIZE_STORAGE_TYPE },
+        { "nodes/metadata_offset", (void *) metadata_offset, 2, KAS_UINT32 },
         { "format/name", (void *) format_name, sizeof(format_name), KAS_INT8 },
         { "format/version", (void *) version, 2, KAS_UINT32 },
         { "uuid", (void *) uuid, uuid_size, KAS_INT8 },

@@ -86,9 +86,8 @@ typedef uint64_t tsk_size_t;
 #define TSK_MAX_SIZE UINT64_MAX
 #define TSK_SIZE_STORAGE_TYPE KAS_UINT64
 #else
-typedef uint32_t tsk_size_t;
-#define TSK_MAX_SIZE UINT32_MAX
-#define TSK_SIZE_STORAGE_TYPE KAS_UINT32
+typedef size_t tsk_size_t;
+#define TSK_MAX_SIZE SIZE_MAX
 #endif
 
 /**
