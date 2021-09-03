@@ -129,13 +129,23 @@ class IbdResult:
     set of sample pairs.
     """
 
-    def __init__(self, pairs):
+    def __init__(self, pairs, num_nodes):
         # TODO not sure we should to this, but let's keep compatibility with
         # the C output for now.
         self.segments = {pair: [] for pair in pairs}
+        self.num_nodes = num_nodes
 
     def add_segment(self, a, b, seg):
         key = (a, b) if a < b else (b, a)
+
+        pair_id = a * self.num_nodes + b
+        # print("key = ", a, b, "->", pair_id)
+
+        ap = pair_id // self.num_nodes
+        bp = pair_id % self.num_nodes
+        assert a == ap
+        assert b == bp
+
         if key in self.segments:
             self.segments[key].append(seg)
 
@@ -169,7 +179,7 @@ class IbdFinder:
         self.ts = ts
         self.sample_pairs = sample_pairs
         self.check_sample_pairs()
-        self.result = IbdResult(sample_pairs)
+        self.result = IbdResult(sample_pairs, ts.num_nodes)
         self.samples = list({i for pair in self.sample_pairs for i in pair})
 
         self.sample_id_map = np.zeros(ts.num_nodes, dtype=int) - 1
