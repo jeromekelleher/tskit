@@ -5818,6 +5818,91 @@ class TestSimplifyKeepInputRoots(SimplifyTestBase, ExampleTopologyMixin):
                     self.verify_keep_input_roots(ts, samples)
 
 
+class TestSimplifyFilterNodes:
+    """
+    Tests simplify when nodes are kept in the ts with filter_nodes=False
+    """
+
+    def reverse_node_indexes(self, ts):
+        tables = ts.dump_tables()
+        nodes = tables.nodes
+        edges = tables.edges
+        mutations = tables.mutations
+        nodes.replace_with(nodes[::-1])
+        edges.parent = ts.num_nodes - edges.parent - 1
+        edges.child = ts.num_nodes - edges.child - 1
+        mutations.node = ts.num_nodes - mutations.node - 1
+        tables.sort()
+        return tables.tree_sequence()
+
+    def verify_nodes_unchanged(self, ts_in, resample_size=None):
+        if resample_size is None:
+            samples = None
+        else:
+            np.random.seed(42)
+            samples = np.sort(
+                np.random.choice(ts_in.num_nodes, resample_size, replace=False)
+            )
+
+        for ts in (ts_in, self.reverse_node_indexes(ts_in)):
+            # TODO - set compare_lib=True when filter_nodes implemented in C
+            filtered, n_map = do_simplify(
+                ts, samples=samples, filter_nodes=False, compare_lib=False
+            )
+            assert np.array_equal(n_map, np.arange(ts.num_nodes, dtype=n_map.dtype))
+            for n1, n2 in zip(ts.nodes(), filtered.nodes()):
+                assert n1 == n2
+
+    def test_empty(self):
+        ts = tskit.TableCollection(1).tree_sequence()
+        self.verify_nodes_unchanged(ts)
+
+    @pytest.mark.parametrize("resample_size", [None, 4])
+    def test_no_topology(self, resample_size):
+        ts = tskit.Tree.generate_comb(5).tree_sequence
+        ts = ts.keep_intervals([], simplify=False)
+        assert ts.num_nodes > 5  # has unreferenced nodes
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+    @pytest.mark.parametrize("resample_size", [None, 2])
+    def test_stick_tree(self, resample_size):
+        ts = tskit.Tree.generate_comb(2).tree_sequence
+        ts = ts.simplify([0], keep_unary=True)
+        assert ts.first().parent(0) != tskit.NULL
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+    @pytest.mark.parametrize("resample_size", [None, 4])
+    def test_blank_flanks(self, resample_size):
+        ts = tskit.Tree.generate_comb(4).tree_sequence
+        ts = ts.keep_intervals([[0.25, 0.75]], simplify=False)
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+    @pytest.mark.parametrize("resample_size", [None, 10])
+    def test_with_metadata(self, ts_fixture_for_simplify, resample_size):
+        assert ts_fixture_for_simplify.num_nodes > 10
+        self.verify_nodes_unchanged(
+            ts_fixture_for_simplify, resample_size=resample_size
+        )
+
+    @pytest.mark.parametrize("resample_size", [None, 7])
+    def test_complex_ts_with_unary(self, resample_size):
+        ts = msprime.sim_ancestry(
+            3,
+            sequence_length=10,
+            recombination_rate=1,
+            record_full_arg=True,
+            random_seed=123,
+        )
+        assert ts.num_trees > 2
+        ts = msprime.sim_mutations(ts, rate=1, random_seed=123)
+        # Add some unreferenced nodes
+        tables = ts.dump_tables()
+        tables.nodes.add_row(flags=0)
+        tables.nodes.add_row(flags=tskit.NODE_IS_SAMPLE)
+        ts = tables.tree_sequence()
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+
 class TestMapToAncestors:
     """
     Tests the AncestorMap class.
