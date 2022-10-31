@@ -111,7 +111,7 @@ class Simplifier:
         keep_unary=False,
         keep_unary_in_individuals=False,
         keep_input_roots=False,
-        filter_nodes=True,
+        filter_nodes=True,  # If this is False, the order in `sample` is ignored
     ):
         self.ts = ts
         self.n = len(sample)
@@ -148,10 +148,10 @@ class Simplifier:
                 output_id = self.record_node(sample_id, is_sample=True)
                 self.add_ancestry(sample_id, 0, self.sequence_length, output_id)
         else:
-            assert list(sample) == list(ts.samples())
             for node in ts.nodes():
-                self.record_node(node.id, node.is_sample())
-                if node.is_sample():
+                is_sample = node.id in self.samples
+                self.record_node(node.id, is_sample=is_sample)
+                if is_sample:
                     self.add_ancestry(node.id, 0, self.sequence_length, node.id)
 
         self.position_lookup = None

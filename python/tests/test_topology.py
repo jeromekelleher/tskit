@@ -5835,7 +5835,7 @@ class TestSimplifyFilterNodes:
         tables.sort()
         return tables.tree_sequence()
 
-    def verify_nodes_unchanged(self, ts_in, resample_size=None):
+    def verify_nodes_unchanged(self, ts_in, resample_size=None, **kwargs):
         if resample_size is None:
             samples = None
         else:
@@ -5847,14 +5847,39 @@ class TestSimplifyFilterNodes:
         for ts in (ts_in, self.reverse_node_indexes(ts_in)):
             # TODO - set compare_lib=True when filter_nodes implemented in C
             filtered, n_map = do_simplify(
-                ts, samples=samples, filter_nodes=False, compare_lib=False
+                ts, samples=samples, filter_nodes=False, compare_lib=False, **kwargs
             )
             assert np.array_equal(n_map, np.arange(ts.num_nodes, dtype=n_map.dtype))
             for n1, n2 in zip(ts.nodes(), filtered.nodes()):
+                # Ignore the tskit.NODE_IS_SAMPLE flag which can be changed by simplify
+                n1 = n1.replace(flags=n1.flags | tskit.NODE_IS_SAMPLE)
+                n2 = n2.replace(flags=n2.flags | tskit.NODE_IS_SAMPLE)
                 assert n1 == n2
+
+            # Check that edges are identical to the normal simplify(),
+            # with the normal "simplify" having altered IDs
+            simplified, node_map = ts.simplify(
+                samples=samples, map_nodes=True, **kwargs
+            )
+            simplified_edges = {e for e in simplified.tables.edges}
+            filtered_edges = {
+                e.replace(parent=node_map[e.parent], child=node_map[e.child])
+                for e in filtered.tables.edges
+            }
+            assert filtered_edges == simplified_edges
 
     def test_empty(self):
         ts = tskit.TableCollection(1).tree_sequence()
+        self.verify_nodes_unchanged(ts)
+
+    def test_all_samples(self):
+        ts = tskit.Tree.generate_comb(5).tree_sequence
+        tables = ts.dump_tables()
+        flags = tables.nodes.flags
+        flags |= tskit.NODE_IS_SAMPLE
+        tables.nodes.flags = flags
+        ts = tables.tree_sequence()
+        assert ts.num_samples == ts.num_nodes
         self.verify_nodes_unchanged(ts)
 
     @pytest.mark.parametrize("resample_size", [None, 4])
@@ -5871,10 +5896,35 @@ class TestSimplifyFilterNodes:
         assert ts.first().parent(0) != tskit.NULL
         self.verify_nodes_unchanged(ts, resample_size=resample_size)
 
+        # switch to an internal sample
+        tables = ts.dump_tables()
+        flags = tables.nodes.flags
+        flags[0] = 0
+        flags[1] = tskit.NODE_IS_SAMPLE
+        tables.nodes.flags = flags
+        self.verify_nodes_unchanged(tables.tree_sequence(), resample_size=resample_size)
+
+    @pytest.mark.parametrize("resample_size", [None, 4])
+    def test_internal_samples(self, resample_size):
+        ts = tskit.Tree.generate_comb(4).tree_sequence
+        tables = ts.dump_tables()
+        flags = tables.nodes.flags
+        flags ^= tskit.NODE_IS_SAMPLE
+        tables.nodes.flags = flags
+        ts = tables.tree_sequence()
+        assert np.all(ts.samples() >= ts.num_samples)
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
     @pytest.mark.parametrize("resample_size", [None, 4])
     def test_blank_flanks(self, resample_size):
         ts = tskit.Tree.generate_comb(4).tree_sequence
         ts = ts.keep_intervals([[0.25, 0.75]], simplify=False)
+        self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+    @pytest.mark.parametrize("resample_size", [None, 4])
+    def test_multiroot(self, resample_size):
+        ts = tskit.Tree.generate_balanced(6).tree_sequence
+        ts = ts.decapitate(2.5)
         self.verify_nodes_unchanged(ts, resample_size=resample_size)
 
     @pytest.mark.parametrize("resample_size", [None, 10])
@@ -5901,6 +5951,19 @@ class TestSimplifyFilterNodes:
         tables.nodes.add_row(flags=tskit.NODE_IS_SAMPLE)
         ts = tables.tree_sequence()
         self.verify_nodes_unchanged(ts, resample_size=resample_size)
+
+    def test_keeping_unary(self):
+        # Test interaction with keeping unary nodes
+        n_samples = 6
+        ts = tskit.Tree.generate_comb(n_samples).tree_sequence
+        num_nodes = ts.num_nodes
+        reduced_n_samples = [2, n_samples - 1]  # last sample is most deeply nested
+        ts_with_unary = ts.simplify(reduced_n_samples, keep_unary=True)
+        assert ts_with_unary.num_nodes == num_nodes - n_samples + len(reduced_n_samples)
+        tree = ts_with_unary.first()
+        assert any([tree.num_children(u) == 1 for u in tree.nodes()])
+        self.verify_nodes_unchanged(ts_with_unary, keep_unary=True)
+        self.verify_nodes_unchanged(ts_with_unary, keep_unary=False)
 
 
 class TestMapToAncestors:
