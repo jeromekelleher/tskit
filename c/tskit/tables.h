@@ -715,6 +715,8 @@ flag). It keeps unary nodes, but only if the unary node is referenced from an in
 @endrst
 */
 #define TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS (1 << 6)
+/** Remove nodes from the output if there are no edges that reference them.*/
+#define TSK_SIMPLIFY_FILTER_NODES (1 << 7)
 /** @} */
 
 /**
@@ -3928,6 +3930,7 @@ flags:
 - :c:macro:`TSK_SIMPLIFY_KEEP_UNARY`
 - :c:macro:`TSK_SIMPLIFY_KEEP_INPUT_ROOTS`
 - :c:macro:`TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS`
+- :c:macro:`TSK_SIMPLIFY_FILTER_NODES`
 @endrst
 
 @param self A pointer to a tsk_table_collection_t object.

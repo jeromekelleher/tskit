@@ -4780,6 +4780,7 @@ def do_simplify(
             filter_sites=filter_sites,
             filter_individuals=filter_individuals,
             filter_populations=filter_populations,
+            filter_nodes=filter_nodes,
             keep_unary=keep_unary,
             keep_input_roots=keep_input_roots,
             map_nodes=True,
@@ -4794,6 +4795,7 @@ def do_simplify(
             keep_input_roots=keep_input_roots,
             filter_individuals=filter_individuals,
             filter_populations=filter_populations,
+            filter_nodes=filter_nodes,
         )
 
         py_tables = new_ts.dump_tables()
@@ -4801,7 +4803,6 @@ def do_simplify(
             (lib_tables1, lib_node_map1),
             (lib_tables2, lib_node_map2),
         ]:
-
             assert lib_tables.nodes == py_tables.nodes
             assert lib_tables.edges == py_tables.edges
             assert lib_tables.migrations == py_tables.migrations
@@ -5845,9 +5846,8 @@ class TestSimplifyFilterNodes:
             )
 
         for ts in (ts_in, self.reverse_node_indexes(ts_in)):
-            # TODO - set compare_lib=True when filter_nodes implemented in C
             filtered, n_map = do_simplify(
-                ts, samples=samples, filter_nodes=False, compare_lib=False, **kwargs
+                ts, samples=samples, filter_nodes=False, compare_lib=True, **kwargs
             )
             assert np.array_equal(n_map, np.arange(ts.num_nodes, dtype=n_map.dtype))
             for n1, n2 in zip(ts.nodes(), filtered.nodes()):
