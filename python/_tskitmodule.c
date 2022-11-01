@@ -6585,7 +6585,7 @@ TableCollection_simplify(TableCollection *self, PyObject *args, PyObject *kwds)
     npy_intp *shape, dims;
     tsk_size_t num_samples;
     tsk_flags_t options = 0;
-    int filter_sites = true;
+    int filter_sites = false;
     int filter_individuals = false;
     int filter_populations = false;
     int filter_nodes = true;
@@ -6622,8 +6622,8 @@ TableCollection_simplify(TableCollection *self, PyObject *args, PyObject *kwds)
     if (filter_populations) {
         options |= TSK_SIMPLIFY_FILTER_POPULATIONS;
     }
-    if (filter_nodes) {
-        options |= TSK_SIMPLIFY_FILTER_NODES;
+    if (!filter_nodes) {
+        options |= TSK_SIMPLIFY_NO_FILTER_NODES;
     }
     if (reduce_to_site_topology) {
         options |= TSK_SIMPLIFY_REDUCE_TO_SITE_TOPOLOGY;

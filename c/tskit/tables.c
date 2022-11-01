@@ -8697,8 +8697,8 @@ simplifier_print_state(simplifier_t *self, FILE *out)
     fprintf(out, "options:\n");
     fprintf(out, "\tfilter_unreferenced_sites   : %d\n",
         !!(self->options & TSK_SIMPLIFY_FILTER_SITES));
-    fprintf(out, "\tfilter_nodes   : %d\n",
-        !!(self->options & TSK_SIMPLIFY_FILTER_NODES));
+    fprintf(out, "\tno_filter_nodes   : %d\n",
+        !!(self->options & TSK_SIMPLIFY_NO_FILTER_NODES));
     fprintf(out, "\treduce_to_site_topology : %d\n",
         !!(self->options & TSK_SIMPLIFY_REDUCE_TO_SITE_TOPOLOGY));
     fprintf(out, "\tkeep_unary              : %d\n",
@@ -9067,7 +9067,7 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     tsk_id_t node_id;
     tsk_size_t j;
     tsk_size_t num_nodes = self->input_tables.nodes.num_rows;
-    bool filter_nodes = !!(self->options & TSK_SIMPLIFY_FILTER_NODES);
+    bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
     bool is_sample;
 
     for (j = 0; j < self->num_samples; j++) {
@@ -9282,7 +9282,7 @@ simplifier_merge_ancestors(simplifier_t *self, tsk_id_t input_id)
 
     bool is_sample = self->is_sample[input_id];
     /* bool is_sample = output_id != TSK_NULL; */
-    bool filter_nodes = !!(self->options & TSK_SIMPLIFY_FILTER_NODES);;
+    bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);;
     bool keep_unary = !!(self->options & TSK_SIMPLIFY_KEEP_UNARY);;
     if ((self->options & TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS)
         && (self->input_tables.nodes.individual[input_id] != TSK_NULL)) {
