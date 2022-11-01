@@ -9071,8 +9071,7 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     bool is_sample;
 
     for (j = 0; j < self->num_samples; j++) {
-        if (samples[j] < 0
-            || samples[j] > (tsk_id_t) num_nodes) {
+        if (samples[j] < 0 || samples[j] > (tsk_id_t) num_nodes) {
             ret = TSK_ERR_NODE_OUT_OF_BOUNDS;
             goto out;
         }
@@ -9282,8 +9281,8 @@ simplifier_merge_ancestors(simplifier_t *self, tsk_id_t input_id)
 
     bool is_sample = self->is_sample[input_id];
     /* bool is_sample = output_id != TSK_NULL; */
-    bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);;
-    bool keep_unary = !!(self->options & TSK_SIMPLIFY_KEEP_UNARY);;
+    bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
+    bool keep_unary = !!(self->options & TSK_SIMPLIFY_KEEP_UNARY);
     if ((self->options & TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS)
         && (self->input_tables.nodes.individual[input_id] != TSK_NULL)) {
         keep_unary = true;
