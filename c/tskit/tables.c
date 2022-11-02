@@ -8878,7 +8878,7 @@ simplifier_init_position_lookup(simplifier_t *self)
         goto out;
     }
     self->position_lookup[0] = 0;
-    self->position_lookup[num_sites + 1] = self->tables->sequence_length;
+    self->position_lookup[num_sites + 1] = self->input_tables.sequence_length;
     tsk_memcpy(self->position_lookup + 1, self->input_tables.sites.position,
         num_sites * sizeof(double));
 out:
@@ -9069,18 +9069,6 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     tsk_size_t num_nodes = self->input_tables.nodes.num_rows;
     bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
 
-    /* Go through the samples to check for errors. */
-    for (j = 0; j < self->num_samples; j++) {
-        if (samples[j] < 0 || samples[j] > (tsk_id_t) num_nodes) {
-            ret = TSK_ERR_NODE_OUT_OF_BOUNDS;
-            goto out;
-        }
-        if (self->is_sample[samples[j]]) {
-            ret = TSK_ERR_DUPLICATE_SAMPLE;
-            goto out;
-        }
-        self->is_sample[samples[j]] = true;
-    }
     if (filter_nodes) {
         /* Add nodes for the samples. */
         for (j = 0; j < self->num_samples; j++) {
@@ -9103,8 +9091,8 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     /* Add the initial ancestry */
     for (j = 0; j < self->num_samples; j++) {
         node_id = samples[j];
-        ret = simplifier_add_ancestry(
-            self, node_id, 0, self->tables->sequence_length, self->node_id_map[node_id]);
+        ret = simplifier_add_ancestry(self, node_id, 0,
+            self->input_tables.sequence_length, self->node_id_map[node_id]);
         if (ret != 0) {
             goto out;
         }
@@ -9118,6 +9106,7 @@ simplifier_init(simplifier_t *self, const tsk_id_t *samples, tsk_size_t num_samp
     tsk_table_collection_t *tables, tsk_flags_t options)
 {
     int ret = 0;
+    tsk_size_t j;
     tsk_id_t ret_id;
     tsk_size_t num_nodes;
 
@@ -9185,10 +9174,25 @@ simplifier_init(simplifier_t *self, const tsk_id_t *samples, tsk_size_t num_samp
         ret = TSK_ERR_NO_MEMORY;
         goto out;
     }
+
+    /* Go through the samples to check for errors before we clear the tables. */
+    for (j = 0; j < self->num_samples; j++) {
+        if (samples[j] < 0 || samples[j] >= (tsk_id_t) num_nodes) {
+            ret = TSK_ERR_NODE_OUT_OF_BOUNDS;
+            goto out;
+        }
+        if (self->is_sample[samples[j]]) {
+            ret = TSK_ERR_DUPLICATE_SAMPLE;
+            goto out;
+        }
+        self->is_sample[samples[j]] = true;
+    }
+
     ret = tsk_table_collection_clear(self->tables, 0);
     if (ret != 0) {
         goto out;
     }
+
     tsk_memset(
         self->node_id_map, 0xff, self->input_tables.nodes.num_rows * sizeof(tsk_id_t));
     ret = simplifier_init_sites(self);
@@ -9205,6 +9209,7 @@ simplifier_init(simplifier_t *self, const tsk_id_t *samples, tsk_size_t num_samp
             goto out;
         }
     }
+
     self->edge_sort_offset = TSK_NULL;
 out:
     return ret;
