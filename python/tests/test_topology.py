@@ -2686,7 +2686,7 @@ class TestSimplifyExamples(TopologyTestCase):
             filter_sites=filter_sites,
             keep_input_roots=keep_input_roots,
             filter_nodes=filter_nodes,
-            compare_lib=False,  # TMP
+            compare_lib=True,  # TMP
         )
         if debug:
             print("before")
@@ -5847,7 +5847,7 @@ class TestSimplifyFilterNodes:
 
         for ts in (ts_in, self.reverse_node_indexes(ts_in)):
             filtered, n_map = do_simplify(
-                ts, samples=samples, filter_nodes=False, compare_lib=False, **kwargs
+                ts, samples=samples, filter_nodes=False, compare_lib=True, **kwargs
             )
             assert np.array_equal(n_map, np.arange(ts.num_nodes, dtype=n_map.dtype))
             referenced_nodes = set(filtered.samples())
@@ -5855,12 +5855,9 @@ class TestSimplifyFilterNodes:
             referenced_nodes.update(filtered.edges_child)
             for n1, n2 in zip(ts.nodes(), filtered.nodes()):
                 # Ignore the tskit.NODE_IS_SAMPLE flag which can be changed by simplify
-                if n2.id in referenced_nodes:
-                    assert n_map[n2.id] == tskit.NULL
-                else:
-                    n1 = n1.replace(flags=n1.flags | tskit.NODE_IS_SAMPLE)
-                    n2 = n2.replace(flags=n2.flags | tskit.NODE_IS_SAMPLE)
-                    assert n1 == n2
+                n1 = n1.replace(flags=n1.flags | tskit.NODE_IS_SAMPLE)
+                n2 = n2.replace(flags=n2.flags | tskit.NODE_IS_SAMPLE)
+                assert n1 == n2
 
             # Check that edges are identical to the normal simplify(),
             # with the normal "simplify" having altered IDs
