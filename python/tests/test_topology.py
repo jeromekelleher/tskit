@@ -5968,6 +5968,25 @@ class TestSimplifyFilterNodes:
         self.verify_nodes_unchanged(ts_with_unary, keep_unary=True)
         self.verify_nodes_unchanged(ts_with_unary, keep_unary=False)
 
+    def test_find_unreferenced_nodes(self):
+        # Simple test to show we can find unreferenced nodes easily.
+        # 2.00┊    6    ┊
+        #     ┊  ┏━┻━┓  ┊
+        # 1.00┊  4   5  ┊
+        #     ┊ ┏┻┓ ┏┻┓ ┊
+        # 0.00┊ 0 1 2 3 ┊
+        #     0         1
+        ts1 = tskit.Tree.generate_balanced(4).tree_sequence
+        ts2, node_map = do_simplify(
+            ts1, [0, 1, 2], filter_nodes=False, compare_lib=False
+        )
+        assert np.array_equal(node_map, np.arange(ts1.num_nodes))
+        node_references = np.zeros(ts1.num_nodes, dtype=np.int32)
+        node_references[ts2.edges_parent] += 1
+        node_references[ts2.edges_child] += 1
+        # Simplifying for [0, 1, 2] should remove references to node 3 and 5
+        assert list(node_references) == [1, 1, 1, 0, 2, 0, 1]
+
 
 class TestMapToAncestors:
     """
