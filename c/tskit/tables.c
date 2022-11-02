@@ -8807,7 +8807,7 @@ out:
 /* Add a new node to the output node table corresponding to the specified input id.
  * Returns the new ID. */
 static tsk_id_t TSK_WARN_UNUSED
-simplifier_record_node(simplifier_t *self, tsk_id_t input_id, bool is_sample)
+simplifier_record_node(simplifier_t *self, tsk_id_t input_id)
 {
     tsk_node_t node;
     tsk_flags_t flags;
@@ -8815,7 +8815,7 @@ simplifier_record_node(simplifier_t *self, tsk_id_t input_id, bool is_sample)
     tsk_node_table_get_row_unsafe(&self->input_tables.nodes, (tsk_id_t) input_id, &node);
     /* Zero out the sample bit */
     flags = node.flags & (tsk_flags_t) ~TSK_NODE_IS_SAMPLE;
-    if (is_sample) {
+    if (self->is_sample[input_id]) {
         flags |= TSK_NODE_IS_SAMPLE;
     }
     self->node_id_map[input_id] = (tsk_id_t) self->tables->nodes.num_rows;
@@ -9068,8 +9068,8 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     tsk_size_t j;
     tsk_size_t num_nodes = self->input_tables.nodes.num_rows;
     bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
-    bool is_sample;
 
+    /* Go through the samples to check for errors. */
     for (j = 0; j < self->num_samples; j++) {
         if (samples[j] < 0 || samples[j] > (tsk_id_t) num_nodes) {
             ret = TSK_ERR_NODE_OUT_OF_BOUNDS;
@@ -9081,37 +9081,32 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
         }
         self->is_sample[samples[j]] = true;
     }
-
     if (filter_nodes) {
-        /* Go through the samples to check for errors. */
+        /* Add nodes for the samples. */
         for (j = 0; j < self->num_samples; j++) {
-            node_id = simplifier_record_node(self, samples[j], true);
+            node_id = simplifier_record_node(self, samples[j]);
             if (node_id < 0) {
                 ret = (int) node_id;
-                goto out;
-            }
-            ret = simplifier_add_ancestry(
-                self, samples[j], 0, self->tables->sequence_length, node_id);
-            if (ret != 0) {
                 goto out;
             }
         }
     } else {
-        /* record all the nodes, but only save ancestry for those in the sample */
+        /* Add all the nodes */
         for (j = 0; j < num_nodes; j++) {
-            is_sample = self->is_sample[j];
-            node_id = simplifier_record_node(self, (tsk_id_t) j, is_sample);
+            node_id = simplifier_record_node(self, (tsk_id_t) j);
             if (node_id < 0) {
                 ret = (int) node_id;
                 goto out;
             }
-            if (is_sample) {
-                ret = simplifier_add_ancestry(
-                    self, node_id, 0, self->tables->sequence_length, node_id);
-                if (ret != 0) {
-                    goto out;
-                }
-            }
+        }
+    }
+    /* Add the initial ancestry */
+    for (j = 0; j < self->num_samples; j++) {
+        node_id = samples[j];
+        ret = simplifier_add_ancestry(
+            self, node_id, 0, self->tables->sequence_length, self->node_id_map[node_id]);
+        if (ret != 0) {
+            goto out;
         }
     }
 out:
@@ -9317,7 +9312,7 @@ simplifier_merge_ancestors(simplifier_t *self, tsk_id_t input_id)
                 ancestry_node = output_id;
             } else if (keep_unary) {
                 if (output_id == TSK_NULL) {
-                    output_id = simplifier_record_node(self, input_id, false);
+                    output_id = simplifier_record_node(self, input_id);
                 }
                 ret = simplifier_record_edge(self, left, right, ancestry_node);
                 if (ret != 0) {
@@ -9326,7 +9321,7 @@ simplifier_merge_ancestors(simplifier_t *self, tsk_id_t input_id)
             }
         } else {
             if (output_id == TSK_NULL) {
-                output_id = simplifier_record_node(self, input_id, false);
+                output_id = simplifier_record_node(self, input_id);
                 if (output_id < 0) {
                     ret = (int) output_id;
                     goto out;
@@ -9732,7 +9727,7 @@ simplifier_insert_input_roots(simplifier_t *self)
         if (x != NULL) {
             output_id = self->node_id_map[input_id];
             if (output_id == TSK_NULL) {
-                output_id = simplifier_record_node(self, input_id, false);
+                output_id = simplifier_record_node(self, input_id);
                 if (output_id < 0) {
                     ret = (int) output_id;
                     goto out;

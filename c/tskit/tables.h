@@ -715,8 +715,9 @@ flag). It keeps unary nodes, but only if the unary node is referenced from an in
 @endrst
 */
 #define TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS (1 << 6)
-/** Retain nodes in the output even if no edges reference them. This is negated
-compared to the other TSK_SIMPLIFY_FILTER_XXX flags to preserve previous behaviour.
+/** Retain nodes in the output even if no edges reference them. Note that
+this flag is negated compare to other filtering options because the default
+behaviour is remove unreferenced nodes.
 */
 #define TSK_SIMPLIFY_NO_FILTER_NODES (1 << 7)
 /** @} */
@@ -3913,8 +3914,16 @@ A mapping from the node IDs in the table before simplification to their equivale
 values after simplification can be obtained via the ``node_map`` argument. If this
 is non NULL, ``node_map[u]`` will contain the new ID for node ``u`` after simplification,
 or :c:macro:`TSK_NULL` if the node has been removed. Thus, ``node_map`` must be an array
-of at least ``self->nodes.num_rows`` :c:type:`tsk_id_t` values. The table collection will
-always be unindexed after simplify successfully completes.
+of at least ``self->nodes.num_rows`` :c:type:`tsk_id_t` values.
+
+If the `TSK_SIMPLIFY_NO_FILTER_NODES` option is specified, the node table will be
+unaltered except for changing the sample status of nodes that were samples in the
+input tables, but not in the specified list of sample IDs (if provided). The
+``node_map`` (if specified) will always be the identity mapping, such that
+``node_map[u] == u`` for all nodes. Note also that the order of the list of
+samples is not important in this case.
+
+The table collection will always be unindexed after simplify successfully completes.
 
 .. note:: Migrations are currently not supported by simplify, and an error will
     be raised if we attempt call simplify on a table collection with greater
