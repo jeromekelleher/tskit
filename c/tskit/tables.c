@@ -9275,7 +9275,6 @@ simplifier_merge_ancestors(simplifier_t *self, tsk_id_t input_id)
     tsk_id_t output_id = self->node_id_map[input_id];
 
     bool is_sample = self->is_sample[input_id];
-    /* bool is_sample = output_id != TSK_NULL; */
     bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
     bool keep_unary = !!(self->options & TSK_SIMPLIFY_KEEP_UNARY);
     if ((self->options & TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS)
