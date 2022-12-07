@@ -5978,7 +5978,9 @@ class TestSimplifyFilterNodes:
         #     0         1
         ts1 = tskit.Tree.generate_balanced(4).tree_sequence
         ts2, node_map = do_simplify(
-            ts1, [0, 1, 2], filter_nodes=False, compare_lib=False
+            ts1,
+            [0, 1, 2],
+            filter_nodes=False,
         )
         assert np.array_equal(node_map, np.arange(ts1.num_nodes))
         node_references = np.zeros(ts1.num_nodes, dtype=np.int32)
@@ -5986,6 +5988,25 @@ class TestSimplifyFilterNodes:
         node_references[ts2.edges_child] += 1
         # Simplifying for [0, 1, 2] should remove references to node 3 and 5
         assert list(node_references) == [1, 1, 1, 0, 2, 0, 1]
+
+    def test_mutations_on_removed_branches(self):
+        # 2.00┊    6    ┊
+        #     ┊  ┏━┻━┓  ┊
+        # 1.00┊  4   5  ┊
+        #     ┊ ┏┻┓ ┏┻┓ ┊
+        # 0.00┊ 0 1 2 3 ┊
+        #     0         1
+        tables = tskit.Tree.generate_balanced(4).tree_sequence.dump_tables()
+        # A mutation on a removed branch should get removed
+        tables.sites.add_row(0.5, "A")
+        tables.mutations.add_row(0, node=3, derived_state="T")
+        ts2, node_map = do_simplify(
+            tables.tree_sequence(),
+            [0, 1, 2],
+            filter_nodes=False,
+        )
+        assert ts2.num_sites == 0
+        assert ts2.num_mutations == 0
 
 
 class TestMapToAncestors:
