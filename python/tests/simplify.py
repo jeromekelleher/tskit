@@ -138,24 +138,34 @@ class Simplifier:
         self.sort_offset = -1
         # We keep a map of input nodes to mutations.
         self.mutation_map = [[] for _ in range(ts.num_nodes)]
-        position = ts.tables.sites.position
-        site = ts.tables.mutations.site
-        node = ts.tables.mutations.node
+        position = ts.sites_position
+        site = ts.mutations_site
+        node = ts.mutations_node
         for mutation_id in range(ts.num_mutations):
             site_position = position[site[mutation_id]]
             self.mutation_map[node[mutation_id]].append((site_position, mutation_id))
 
         for sample_id in sample:
             self.is_sample[sample_id] = 1
-        if self.filter_nodes:
+
+        if not self.filter_nodes:
+            # NOTE In the C implementation we would really just not touch the
+            # original tables.
+            self.tables.nodes.replace_with(self.ts.tables.nodes)
+            # TODO make this optional somehow
+            flags = self.tables.nodes.flags
+            # Zero out other sample flags
+            flags = np.bitwise_and(flags, ~tskit.NODE_IS_SAMPLE)
+            flags[sample] |= tskit.NODE_IS_SAMPLE
+            self.tables.nodes.flags = flags.astype(np.uint32)
+            self.node_id_map[:] = np.arange(ts.num_nodes)
+
+            for sample_id in sample:
+                self.add_ancestry(sample_id, 0, self.sequence_length, sample_id)
+        else:
             for sample_id in sample:
                 output_id = self.record_node(sample_id)
                 self.add_ancestry(sample_id, 0, self.sequence_length, output_id)
-        else:
-            for node in ts.nodes():
-                self.record_node(node.id)
-                if self.is_sample[node.id]:
-                    self.add_ancestry(node.id, 0, self.sequence_length, node.id)
 
         self.position_lookup = None
         if self.reduce_to_site_topology:

@@ -9068,6 +9068,14 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
     tsk_size_t j;
     tsk_size_t num_nodes = self->input_tables.nodes.num_rows;
     bool filter_nodes = !(self->options & TSK_SIMPLIFY_NO_FILTER_NODES);
+    /* Don't clear the node table if we're not filtering nodes */
+    tsk_bookmark_t rows_to_retain = { .nodes = filter_nodes ? 0 : num_nodes };
+    tsk_flags_t *node_flags = self->tables->nodes.flags;
+
+    ret = tsk_table_collection_truncate(self->tables, &rows_to_retain);
+    if (ret != 0) {
+        goto out;
+    }
 
     if (filter_nodes) {
         /* Add nodes for the samples. */
@@ -9079,12 +9087,12 @@ simplifier_init_nodes(simplifier_t *self, const tsk_id_t *samples)
             }
         }
     } else {
-        /* Add all the nodes */
+        /* TODO Make this optional */
+        /* Just reset the sample flags */
         for (j = 0; j < num_nodes; j++) {
-            node_id = simplifier_record_node(self, (tsk_id_t) j);
-            if (node_id < 0) {
-                ret = (int) node_id;
-                goto out;
+            node_flags[j] &= (tsk_flags_t) ~TSK_NODE_IS_SAMPLE;
+            if (self->is_sample[j]) {
+                node_flags[j] |= TSK_NODE_IS_SAMPLE;
             }
         }
     }
@@ -9186,11 +9194,6 @@ simplifier_init(simplifier_t *self, const tsk_id_t *samples, tsk_size_t num_samp
             goto out;
         }
         self->is_sample[samples[j]] = true;
-    }
-
-    ret = tsk_table_collection_clear(self->tables, 0);
-    if (ret != 0) {
-        goto out;
     }
 
     tsk_memset(
