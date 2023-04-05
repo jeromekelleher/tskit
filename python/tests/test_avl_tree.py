@@ -61,8 +61,14 @@ class Node:
         rlink = None if self.rlink is None else self.rlink.key
         return (
             f"Node(key={self.key}, balance={self.balance}, "
-            f"llink={llink}, rlink={rlink})"
+            f"llink={llink}, rlink={rlink}, addr={id(self)})"
         )
+
+    def replace_with(self, other):
+        self.key = other.key
+        self.llink = other.llink
+        self.rlink = other.rlink
+        self.balance = other.balance
 
 
 # For convenience in description, the algorithm uses the notation LINK(a,P)
@@ -249,12 +255,62 @@ class AvlTree:
             else:
                 T.llink = P
 
+        self.size += 1
         return Q
 
     def insert(self, key):
         if self.size == 0:
             return self.__insert_empty(key)
         return self.__insert(key)
+
+    def delete(self, key):
+        # Algorithm 6.2.2.D
+        Q = self.search(key)
+        print("DEL", Q)
+
+        # NOTE: there's something subtle going on here with how Knuth
+        # is managing the memory locations. The replace_with bit is
+        # crude workaround which isn't working, need to understand this better.
+
+        # D1 [Is RLINK null?]
+        T = Q
+        if T.rlink is None:
+            print("CASE 1")
+            # Q = T.llink
+            Q.replace_with(T.llink)
+            # goto D4
+        else:
+            # D2 [Find successor]
+            R = T.rlink
+            if R.llink is None:
+                print("CASE 2")
+                R.llink = T.llink
+                # Q = R
+                Q.replace_with(R)
+                # goto D4
+            else:
+                print("CASE 3")
+                # D3 [Find null LLINK]
+                S = R.llink
+                while S.llink is not None:
+                    R = S
+                S.llink = T.llink
+                R.llink = S.llink
+                S.rlink = T.rlink
+                # Q = S
+                Q.replace_with(S)
+
+        # D4 [Free node]
+        print(T)
+        assert T.key == key
+        del T
+        self.size -= 1
+
+
+
+
+
+
 
 
 class TestAvlTree:
@@ -342,6 +398,7 @@ class TestAvlTree:
 
         visit(tree.root, 0, l2)
         assert l2 == ordered_keys
+        assert tree.size == len(ordered_keys)
 
     @pytest.mark.parametrize("n", [0, 1, 10, 33, 64, 127, 133])
     def test_sequential(self, n):
@@ -362,3 +419,15 @@ class TestAvlTree:
         rng = np.random.RandomState(42)
         values = rng.random(size=n)
         self.verify(values)
+
+
+    def test_delete_simple(self):
+        tree = AvlTree()
+        for j in range(10):
+            tree.insert(j)
+        print(tree)
+        assert tree.size == 10
+        tree.delete(9)
+        print(tree)
+        assert tree.size == 9
+
