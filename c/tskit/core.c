@@ -960,7 +960,8 @@ tsk_avl_tree_int_print_node(tsk_avl_node_int_t *node, int depth, FILE *out)
     for (d = 0; d < depth; d++) {
         fprintf(out, "  ");
     }
-    fprintf(out, "key=%d balance=%d\n", (int) node->key, node->balance);
+    fprintf(out, "key=%d balance=%d %p\n", (int) node->key, node->balance,
+            (void*) node);
     tsk_avl_tree_int_print_node(node->llink, depth + 1, out);
     tsk_avl_tree_int_print_node(node->rlink, depth + 1, out);
 }
@@ -1138,6 +1139,96 @@ tsk_avl_tree_int_insert(tsk_avl_tree_int_t *self, tsk_avl_node_int_t *node)
         ret = tsk_avl_tree_int_insert_non_empty(self, node);
     }
     return ret;
+}
+
+tsk_avl_node_int_t *
+tsk_avl_tree_int_delete(tsk_avl_tree_int_t *self, tsk_avl_node_int_t *node)
+{
+    tsk_avl_node_int_t *Q = node;
+    tsk_avl_node_int_t *T, *R, *S;
+
+    printf("Delete %p, key=%d\n", (void *) node, (int) node->key);
+
+    /* D1 [Is RLINK null?] */
+    T = Q;
+    if (T->rlink == NULL) {
+        printf("CASE 1\n");
+        Q = T->llink;
+        /* goto D4 */
+    } else {
+        /* D2 [Find successor] */
+        R = T->rlink;
+        if (R->llink == NULL) {
+            printf("CASE 2\n");
+            R->llink = T->llink;
+            Q = R;
+            /* goto D4 */
+        } else {
+            printf("CASE 3\n");
+            /* D3 [Find null LLINK] */
+            S = R->llink;
+            while (S->llink != NULL) {
+                R = S;
+                S = R->llink;
+            }
+            S->llink = T->llink;
+            R->llink = S->llink;
+            S->rlink = T->rlink;
+            Q = S;
+        }
+    }
+    self->size--;
+    return T;
+
+    /* # D4 [Free node] */
+    /* print(T) */
+    /* assert T.key == key */
+    /* del T */
+    /* self.size -= 1 */
+
+    /* # Algorithm 6.2.2.D */
+    /* Q = self.search(key) */
+    /* print("DEL", Q) */
+
+    /* # NOTE: there's something subtle going on here with how Knuth */
+    /* # is managing the memory locations. The replace_with bit is */
+    /* # crude workaround which isn't working, need to understand this better. */
+
+    /* # D1 [Is RLINK null?] */
+    /* T = Q */
+    /* if T.rlink is None: */
+    /*     print("CASE 1") */
+    /*     # Q = T.llink */
+    /*     Q.replace_with(T.llink) */
+    /*     # goto D4 */
+    /* else: */
+    /*     # D2 [Find successor] */
+    /*     R = T.rlink */
+    /*     if R.llink is None: */
+    /*         print("CASE 2") */
+    /*         R.llink = T.llink */
+    /*         # Q = R */
+    /*         Q.replace_with(R) */
+    /*         # goto D4 */
+    /*     else: */
+    /*         print("CASE 3") */
+    /*         # D3 [Find null LLINK] */
+    /*         S = R.llink */
+    /*         while S.llink is not None: */
+    /*             R = S */
+    /*         S.llink = T.llink */
+    /*         R.llink = S.llink */
+    /*         S.rlink = T.rlink */
+    /*         # Q = S */
+    /*         Q.replace_with(S) */
+
+    /* # D4 [Free node] */
+    /* print(T) */
+    /* assert T.key == key */
+    /* del T */
+    /* self.size -= 1 */
+
+    return 0;
 }
 
 /* An inorder traversal of the nodes in an AVL tree (or any binary search tree)

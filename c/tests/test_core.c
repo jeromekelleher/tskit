@@ -527,6 +527,36 @@ test_avl_random(void)
 }
 
 static void
+test_avl_delete(void)
+{
+    const int64_t n = 10;
+    int64_t j;
+    int ret;
+    tsk_avl_tree_int_t tree;
+    tsk_avl_node_int_t nodes[n];
+    tsk_avl_node_int_t *node;
+
+    tsk_avl_tree_int_init(&tree);
+
+    for (j = 0; j < n; j++) {
+        node = &nodes[j];
+        node->key = j;
+        CU_ASSERT_EQUAL(tsk_avl_tree_int_search(&tree, j), NULL);
+        ret = tsk_avl_tree_int_insert(&tree, node);
+        CU_ASSERT_FATAL(ret == 0);
+    }
+
+    tsk_avl_tree_int_print_state(&tree, stdout);
+
+    node = tsk_avl_tree_int_delete(&tree, &nodes[5]);
+    printf("ret = %p, key = %d\n", (void *) node, (int) node->key);
+
+    tsk_avl_tree_int_print_state(&tree, stdout);
+
+}
+
+
+static void
 test_meson_version(void)
 {
     char version[100];
@@ -554,6 +584,7 @@ main(int argc, char **argv)
         { "test_avl_sequential", test_avl_sequential },
         { "test_avl_interleaved", test_avl_interleaved },
         { "test_avl_random", test_avl_random },
+        { "test_avl_delete", test_avl_delete },
         { "test_meson_version", test_meson_version },
         { NULL, NULL },
     };

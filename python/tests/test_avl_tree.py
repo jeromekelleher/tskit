@@ -294,6 +294,7 @@ class AvlTree:
                 S = R.llink
                 while S.llink is not None:
                     R = S
+                    raise ValueError("this is wrong")
                 S.llink = T.llink
                 R.llink = S.llink
                 S.rlink = T.rlink
