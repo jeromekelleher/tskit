@@ -694,6 +694,16 @@ class TopologyExamplesMixin:
         ts = tables.tree_sequence()
         self.verify(ts)
 
+    def test_flanking_gaps(self):
+        ts = tskit.Tree.generate_comb(4).tree_sequence
+        tables = ts.dump_tables()
+        tables.sequence_length = 3
+        tables.edges.left += 1
+        tables.edges.right += 1
+        ts = tables.tree_sequence()
+        self.verify(ts)
+
+
 
 class MutatedTopologyExamplesMixin:
     """
@@ -6252,6 +6262,15 @@ def test_uninitialised_windows_bug():
     windows = [0, 1, 2, 3]
     X1 = ts.diversity(windows=windows, mode="branch")
     X2 = branch_diversity(ts, [ts.samples()], windows=windows).reshape(3)
+
+    # n = np.array([ts.samples])
+    # def f(x):
+    #     with np.errstate(invalid="ignore", divide="ignore"):
+    #         return x * (n - x) / (n * (n - 1))
+
+    # X3 = branch_general_stat(
+    #     ts, sample_weights, f, windows=None, polarised=False, span_normalise=True
+# ):
     print(X1)
     print(X2)
     # assert X1[0] == 0

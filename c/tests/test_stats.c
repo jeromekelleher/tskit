@@ -974,6 +974,35 @@ test_single_tree_general_stat_errors(void)
 }
 
 static void
+test_empty_flanks_windows_branch_stat(void)
+{
+    const char *edges = "1  2   4   2,3\n"
+                        "1  2   5   1,4\n"
+                        "1  2   6   0,5\n";
+    double windows[] = { 0, 1, 2, 3 };
+    double result[3];
+    tsk_id_t samples[] = { 0, 1, 2, 3 };
+    tsk_size_t sample_set_sizes = 4;
+    tsk_treeseq_t ts;
+    int ret;
+
+    tsk_treeseq_from_text(
+        &ts, 3, single_tree_ex_nodes, edges, NULL, NULL, NULL, NULL, NULL, 0);
+    CU_ASSERT_EQUAL(tsk_treeseq_get_sequence_length(&ts), 3.0);
+    CU_ASSERT_EQUAL(tsk_treeseq_get_num_trees(&ts), 3);
+
+    ret = tsk_treeseq_diversity(
+        &ts, 1, &sample_set_sizes, samples, 3, windows, TSK_STAT_BRANCH, result);
+    CU_ASSERT_EQUAL_FATAL(ret, 0);
+    CU_ASSERT_EQUAL_FATAL(result[0], 0);
+    /* CU_ASSERT_EQUAL_FATAL(result[1], 2); */
+    /* CU_ASSERT_EQUAL_FATAL(result[2], 0); */
+    printf("result = %f\n", result[2]);
+
+    tsk_treeseq_free(&ts);
+}
+
+static void
 test_paper_ex_ld(void)
 {
     tsk_treeseq_t ts;
@@ -1745,6 +1774,9 @@ main(int argc, char **argv)
             test_single_tree_genealogical_nearest_neighbours },
         { "test_single_tree_general_stat", test_single_tree_general_stat },
         { "test_single_tree_general_stat_errors", test_single_tree_general_stat_errors },
+
+        { "test_empty_flanks_windows_branch_stat",
+            test_empty_flanks_windows_branch_stat },
 
         { "test_paper_ex_ld", test_paper_ex_ld },
         { "test_paper_ex_mean_descendants", test_paper_ex_mean_descendants },
