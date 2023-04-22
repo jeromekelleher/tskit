@@ -1,6 +1,6 @@
 # MIT License
 #
-# Copyright (c) 2018-2022 Tskit Developers
+# Copyright (c) 2018-2023 Tskit Developers
 # Copyright (C) 2016 University of Oxford
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -453,7 +453,6 @@ def node_general_stat(
     # contains the location of the last time we updated the output for a node.
     last_update = np.zeros((ts.num_nodes, 1))
     for (t_left, t_right), edges_out, edges_in in ts.edge_diffs():
-
         for edge in edges_out:
             u = edge.child
             v = edge.parent
@@ -980,7 +979,6 @@ class WeightStatsMixin:
             self.verify_weighted_stat(ts, W, windows=windows)
 
     def verify_definition(self, ts, W, windows, summary_func, ts_method, definition):
-
         # general_stat will need an extra column for p
         gW = self.transform_weights(W)
 
@@ -1025,7 +1023,6 @@ class SampleSetStatsMixin:
     def verify_definition(
         self, ts, sample_sets, windows, summary_func, ts_method, definition
     ):
-
         W = np.array([[u in A for A in sample_sets] for u in ts.samples()], dtype=float)
 
         def wrapped_summary_func(x):
@@ -1762,7 +1759,6 @@ def divergence(
 
 
 class TestDivergence(StatsTestCase, TwoWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -1974,7 +1970,6 @@ def genetic_relatedness(
 
 
 class TestGeneticRelatedness(StatsTestCase, TwoWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -2035,7 +2030,6 @@ class TestGeneticRelatedness(StatsTestCase, TwoWaySampleSetStatsMixin):
         self.assertArrayAlmostEqual(sigma1, sigma4)
 
     def verify_sample_sets_indexes(self, ts, sample_sets, indexes, windows):
-
         n = np.array([len(x) for x in sample_sets])
         n_total = sum(n)
 
@@ -2143,7 +2137,6 @@ def single_site_Fst(ts, sample_sets, indexes):
 
 
 class TestFst(StatsTestCase, TwoWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -2332,7 +2325,6 @@ def Y2(ts, sample_sets, indexes=None, windows=None, mode="site", span_normalise=
 
 
 class TestY2(StatsTestCase, TwoWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -2505,7 +2497,6 @@ def Y3(ts, sample_sets, indexes=None, windows=None, mode="site", span_normalise=
 
 
 class TestY3(StatsTestCase, ThreeWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -2674,7 +2665,6 @@ def f2(ts, sample_sets, indexes=None, windows=None, mode="site", span_normalise=
 
 
 class Testf2(StatsTestCase, TwoWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -2860,7 +2850,6 @@ def f3(ts, sample_sets, indexes=None, windows=None, mode="site", span_normalise=
 
 
 class Testf3(StatsTestCase, ThreeWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -3051,7 +3040,6 @@ def f4(ts, sample_sets, indexes=None, windows=None, mode="site", span_normalise=
 
 
 class Testf4(StatsTestCase, FourWaySampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -3315,7 +3303,6 @@ def branch_allele_frequency_spectrum(
         last_update[u] = right
 
     for (t_left, t_right), edges_out, edges_in in ts.edge_diffs():
-
         for edge in edges_out:
             u = edge.child
             v = edge.parent
@@ -3476,7 +3463,6 @@ def allele_frequency_spectrum(
 
 
 class TestAlleleFrequencySpectrum(StatsTestCase, SampleSetStatsMixin):
-
     # Derived classes define this to get a specific stats mode.
     mode = None
 
@@ -5806,7 +5792,6 @@ class SpecificTreesTestCase(StatsTestCase):
                 branch_true_diversity_02,
             ],
         ):
-
             self.assertAlmostEqual(diversity(ts, A, mode=mode)[0][0], truth)
             self.assertAlmostEqual(ts.sample_count_stat(A, f, 1, mode=mode)[0], truth)
             self.assertAlmostEqual(ts.diversity(A, mode="branch")[0], truth)
@@ -6254,3 +6239,21 @@ class TestGeneralStatCallbackErrors:
                 output_dim=1,
                 strict=False,
             )
+
+
+def test_uninitialised_windows_bug():
+    ts = tskit.Tree.generate_comb(4).tree_sequence
+    tables = ts.dump_tables()
+    tables.sequence_length = 3
+    tables.edges.left += 1
+    tables.edges.right += 1
+    ts = tables.tree_sequence()
+
+    windows = [0, 1, 2, 3]
+    X1 = ts.diversity(windows=windows, mode="branch")
+    X2 = branch_diversity(ts, [ts.samples()], windows=windows).reshape(3)
+    print(X1)
+    print(X2)
+    # assert X1[0] == 0
+    # assert X1[2] == 0
+    np.testing.assert_array_equal(X1, X2)
